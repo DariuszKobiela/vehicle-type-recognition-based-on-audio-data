@@ -1,0 +1,2 @@
+require python 3.5-3.7 to work
+tested on 3.7.9
