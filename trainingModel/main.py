@@ -33,7 +33,7 @@ def prepare_data(df, data_path, train_size=0.8):
 # ----------------------------
 # Training Loop
 # ----------------------------
-def training(model, train_dl, validation_dl, num_epochs, early_stopping=None):
+def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, results_csv_path='results.csv'):
     train_losses = []
     val_losses = []
     train_accs = []
@@ -110,16 +110,35 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None):
 
         if stop:
             break
-    
+
+    print('Finished Training')
+
+    # saving results
     correct_epoch_num = epoch
     if stop:
         correct_epoch_num -= 25
 
+    best_train_loss = train_losses[correct_epoch_num]
+    best_val_loss = val_losses[correct_epoch_num]
+    best_train_acc = train_accs[correct_epoch_num]
+    best_val_acc = val_accs[correct_epoch_num]
+    training_id = generate_training_id(correct_epoch_num, best_train_loss, best_val_loss)
+    save_training_results(results_csv_path, training_id, correct_epoch_num, best_val_loss, best_train_loss,
+                          best_val_acc, best_train_acc, results_csv_path)
     plot_training_history(train_losses, val_losses, train_accs, val_accs, correct_epoch_num)
-    print('Finished Training')
 
 
-def save_training_results(csv_path, id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path):
+def generate_training_id(epochs, train_loss, val_loss):
+    str_tr = str(int(train_loss*1000))
+    str_val = str(int(val_loss*1000))
+    return str(epochs) + '_' + str_tr + '_' + str_val
+
+
+def generate_chart_name(epochs, train_loss, val_loss):
+    training_id = generate_training_id(epochs, train_loss, val_loss)
+
+
+def save_training_results(csv_path, training_id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path):
     is_file_exists = os.path.exists(csv_path)
     column_names = ['ID', 'epochs', 'val_loss', 'train_loss', 'val_acc', 'train_acc', 'model_path']
     if not is_file_exists:
@@ -127,7 +146,8 @@ def save_training_results(csv_path, id, epoch_num, val_loss, train_loss, val_acc
     else:
         df = pd.read_csv(csv_path)
 
-    row_df = pd.DataFrame([id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path], columns=column_names)
+    row_df = pd.DataFrame([training_id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path],
+                          columns=column_names)
     df = pd.concat(df, row_df)
     df.to_csv(csv_path, index=False)
 
@@ -154,9 +174,8 @@ def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_e
     ax2.legend()
     plt.show()
 
-    str_tr = str(int(train_losses[stop_epoch_num]*1000))
-    str_val = str(int(val_losses[stop_epoch_num]*1000))
-    filename = 'train_chart_' + str(stop_epoch_num) + '_' + str_tr + '_' + str_val + '.png'
+    training_id = generate_training_id(stop_epoch_num, train_losses[stop_epoch_num], val_losses[stop_epoch_num])
+    filename = 'train_chart_' + training_id + '.png'
     fig.savefig(filename)
 
 
