@@ -33,7 +33,7 @@ def prepare_data(df, data_path, train_size=0.8):
 # ----------------------------
 # Training Loop
 # ----------------------------
-def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, results_csv_path='results.csv'):
+def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, results_csv_path='results.csv', training_id='tr_default', model_path='no_path'):
     train_losses = []
     val_losses = []
     train_accs = []
@@ -50,7 +50,7 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, re
     #     torch.optim.Adagrad(params, lr=learning_rate),
     #     torch.optim.Adam(params,lr=learning_rate)
     # ]
-    optimizer = torch.optim.Adam(params,lr=learning_rate)
+    optimizer = torch.optim.RMSprop(params, lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=learning_rate,
                                                     steps_per_epoch=int(len(train_dl)),
                                                     epochs=num_epochs,
@@ -122,10 +122,9 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, re
     best_val_loss = val_losses[correct_epoch_num]
     best_train_acc = train_accs[correct_epoch_num]
     best_val_acc = val_accs[correct_epoch_num]
-    training_id = generate_training_id(correct_epoch_num, best_train_loss, best_val_loss)
     save_training_results(results_csv_path, training_id, correct_epoch_num, best_val_loss, best_train_loss,
-                          best_val_acc, best_train_acc, results_csv_path)
-    plot_training_history(train_losses, val_losses, train_accs, val_accs, correct_epoch_num)
+                          best_val_acc, best_train_acc, model_path)
+    plot_training_history(train_losses, val_losses, train_accs, val_accs, correct_epoch_num, training_id, 'charts/')
 
 
 def generate_training_id(epochs, train_loss, val_loss):
@@ -134,8 +133,10 @@ def generate_training_id(epochs, train_loss, val_loss):
     return str(epochs) + '_' + str_tr + '_' + str_val
 
 
-def generate_chart_name(epochs, train_loss, val_loss):
-    training_id = generate_training_id(epochs, train_loss, val_loss)
+def generate_chart_name(epochs, train_loss, val_loss, training_id=None):
+    if training_id is None:
+        training_id = generate_training_id(epochs, train_loss, val_loss)
+    return 'train_chart_' + training_id + '.png'
 
 
 def save_training_results(csv_path, training_id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path):
@@ -146,15 +147,15 @@ def save_training_results(csv_path, training_id, epoch_num, val_loss, train_loss
     else:
         df = pd.read_csv(csv_path)
 
-    row_df = pd.DataFrame([training_id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path],
+    row_df = pd.DataFrame([[training_id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path]],
                           columns=column_names)
-    df = pd.concat(df, row_df)
+    df = pd.concat([df, row_df])
     df.to_csv(csv_path, index=False)
 
 
-def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_epoch_num):
+def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_epoch_num, training_id=None, chart_dir=''):
     fig, (ax2, ax1) = plt.subplots(2, sharex=True)
-    fig.suptitle('3*CNN')
+    fig.suptitle("Training " + training_id)
     ax1.set_title('Loss')
     ax1.plot(val_losses, 'r', label='validation loss')
     ax1.plot(train_losses, 'b', label='training loss')
@@ -172,11 +173,10 @@ def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_e
     ax2.axvline(x=stop_epoch_num, color='g', linestyle='--', label='stop')
     ax2.set(ylabel='Accuracy')
     ax2.legend()
-    plt.show()
+    # plt.show()
 
-    training_id = generate_training_id(stop_epoch_num, train_losses[stop_epoch_num], val_losses[stop_epoch_num])
-    filename = 'train_chart_' + training_id + '.png'
-    fig.savefig(filename)
+    filename = generate_chart_name(stop_epoch_num, train_losses[stop_epoch_num], val_losses[stop_epoch_num], training_id)
+    fig.savefig(chart_dir + filename)
 
 
 # ----------------------------
@@ -226,6 +226,48 @@ def inference (model, val_dl, early_stopping=None):
     return stats, False
 
 if __name__ == '__main__':
+    # paths
+    dataset_location_path = 'D:/ProjektBadawczy/annotation/'
+    audio_files_path = 'cutted_files/'
+    full_audio_files_path = dataset_location_path + audio_files_path
+    labels_csv_path = dataset_location_path + 'labels.csv'
+
+    for i in range(5):
+        training_id = '10n_4cnn_rmsprop_relu_' + str(i)
+        model_dir = 'models/'
+        model_filename = 'model_{0}.torch'.format(training_id)
+        model_location_path = model_dir + model_filename
+
+        df = pd.read_csv(labels_csv_path)
+        train_data, val_data = prepare_data(df, dataset_location_path)
+        
+        myModel = AudioClassifier()
+        if os.path.exists(model_location_path):
+            myModel.load_state_dict(torch.load(model_location_path))
+            myModel.eval()
+
+        # Put model on the GPU if available
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        myModel = myModel.to(device)
+        # Check that it is on Cuda
+        next(myModel.parameters()).device
+
+        early_stopping = EarlyStopping(patience=25, verbose=True)
+        num_epochs=500
+        training(myModel, train_data, val_data, num_epochs, early_stopping, training_id=training_id, model_path=model_location_path)
+        myModel.load_state_dict(torch.load(early_stopping.path))
+        myModel.eval()
+        inference(myModel, val_data)
+        inference(myModel, val_data)
+        inference(myModel, val_data)
+        inference(myModel, val_data)
+
+        torch.save(myModel.state_dict(), model_location_path)
+        #torch.save(myModel, model_location_path)
+
+
+    # Old code
+
     # fig, (ax2, ax1) = plt.subplots(2, sharex=True)
     # #fig.title('Loss')
     # ax1.set_title('Loss')
@@ -241,42 +283,6 @@ if __name__ == '__main__':
     # ax2.legend()
     # plt.show()
     # fig.savefig('asd.png')
-    # paths
-    dataset_location_path = 'D:/ProjektBadawczy/annotation/'
-    model_location_path = dataset_location_path + 'model.torch'
-    audio_files_path = 'cutted_files/'
-    full_audio_files_path = dataset_location_path + audio_files_path
-    labels_csv_path = dataset_location_path + 'labels.csv'
-
-    df = pd.read_csv(labels_csv_path)
-    train_data, val_data = prepare_data(df, dataset_location_path)
-    
-    myModel = AudioClassifier()
-    if os.path.exists(model_location_path):
-        myModel.load_state_dict(torch.load(model_location_path))
-        myModel.eval()
-
-    # Put model on the GPU if available
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    myModel = myModel.to(device)
-    # Check that it is on Cuda
-    next(myModel.parameters()).device
-
-    early_stopping = EarlyStopping(patience=25, verbose=True)
-    num_epochs=500
-    training(myModel, train_data, val_data, num_epochs, early_stopping)
-    myModel.load_state_dict(torch.load(early_stopping.path))
-    myModel.eval()
-    inference(myModel, val_data)
-    inference(myModel, val_data)
-    inference(myModel, val_data)
-    inference(myModel, val_data)
-
-    torch.save(myModel.state_dict(), dataset_location_path + 'model.torch')
-    #torch.save(myModel, dataset_location_path + 'model')
-
-
-    # Old code
 
     # audio_file  = AudioUtils.open(full_audio_files_path + 'VehicleNoise0.wav')
     # audio_file = AudioUtils.rechannel(audio_file, 1)
