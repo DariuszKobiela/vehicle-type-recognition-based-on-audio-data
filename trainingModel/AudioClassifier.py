@@ -29,7 +29,7 @@ class AudioClassifier (nn.Module):
         self.conv2.bias.data.zero_()
         conv_layers += [self.conv2, self.relu2, self.bn2]
 
-        # Second Convolution Block
+        # Third Convolution Block
         self.conv3 = nn.Conv2d(16, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
         self.relu3 = nn.ReLU()
         self.bn3 = nn.BatchNorm2d(32)
@@ -37,17 +37,17 @@ class AudioClassifier (nn.Module):
         self.conv3.bias.data.zero_()
         conv_layers += [self.conv3, self.relu3, self.bn3]
 
-        # Second Convolution Block
-        self.conv4 = nn.Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
-        self.relu4 = nn.ReLU()
-        self.bn4 = nn.BatchNorm2d(64)
-        init.kaiming_normal_(self.conv4.weight, a=0.1)
-        self.conv4.bias.data.zero_()
-        conv_layers += [self.conv4, self.relu4, self.bn4]
+        # # Fourth Convolution Block
+        # self.conv4 = nn.Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        # self.relu4 = nn.ReLU()
+        # self.bn4 = nn.BatchNorm2d(64)
+        # init.kaiming_normal_(self.conv4.weight, a=0.1)
+        # self.conv4.bias.data.zero_()
+        # conv_layers += [self.conv4, self.relu4, self.bn4]
 
         # Linear Classifier
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.lin = nn.Linear(in_features=64, out_features=10)
+        self.lin = nn.Linear(in_features=32, out_features=10)
 
         # Wrap the Convolutional Blocks
         self.conv = nn.Sequential(*conv_layers)

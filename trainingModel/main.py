@@ -1,3 +1,4 @@
+from math import ceil
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
@@ -7,6 +8,7 @@ from AudioUtils import AudioUtils
 from SoundDS import SoundDS
 import utilities
 import os
+from EarlyStopping import EarlyStopping
 
 from scipy import signal
 from scipy.io import wavfile
@@ -31,15 +33,30 @@ def prepare_data(df, data_path, train_size=0.8):
 # ----------------------------
 # Training Loop
 # ----------------------------
-def training(model, train_dl, validation_dl, num_epochs):
+def training(model, train_dl, validation_dl, num_epochs, early_stopping=None):
+    train_losses = []
+    val_losses = []
+    train_accs = []
+    val_accs = []
+
     # Loss Function, Optimizer and Scheduler
+    learning_rate = 0.001
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.001,
+    params = model.parameters()
+    # optimizers = [
+    #     torch.optim.Adadelta(params, lr=learning_rate),
+    #     torch.optim.RMSprop(params, lr=learning_rate),
+    #     torch.optim.SGD(params, lr=learning_rate),
+    #     torch.optim.Adagrad(params, lr=learning_rate),
+    #     torch.optim.Adam(params,lr=learning_rate)
+    # ]
+    optimizer = torch.optim.Adam(params,lr=learning_rate)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=learning_rate,
                                                     steps_per_epoch=int(len(train_dl)),
                                                     epochs=num_epochs,
                                                     anneal_strategy='linear')
 
+    stop = False
     # Repeat for each epoch
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -48,6 +65,7 @@ def training(model, train_dl, validation_dl, num_epochs):
 
         # Repeat for each batch in the training set
         for i, data in enumerate(train_dl):
+            # d, target = data
             # Get the input features and target labels, and put them on the GPU
             inputs, labels = data[0].to(device), data[1].to(device)
 
@@ -80,19 +98,76 @@ def training(model, train_dl, validation_dl, num_epochs):
         # Print stats at the end of the epoch
         num_batches = len(train_dl)
         avg_loss = running_loss / num_batches
-        acc = correct_prediction/total_prediction
-        print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc:.2f}')
-        inference(model, validation_dl)
+        acc_train = correct_prediction/total_prediction
+        print(f'Epoch: {epoch}, Loss: {avg_loss:.2f}, Accuracy: {acc_train:.2f}')
 
+        # test early stopping and calc validation loss
+        (valid_loss, acc_val), stop = inference(model, validation_dl, early_stopping)
+        train_losses.append(avg_loss)
+        val_losses.append(valid_loss)
+        train_accs.append(acc_train)
+        val_accs.append(acc_val)
+
+        if stop:
+            break
+    
+    correct_epoch_num = epoch
+    if stop:
+        correct_epoch_num -= 25
+
+    plot_training_history(train_losses, val_losses, train_accs, val_accs, correct_epoch_num)
     print('Finished Training')
+
+
+def save_training_results(csv_path, id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path):
+    is_file_exists = os.path.exists(csv_path)
+    column_names = ['ID', 'epochs', 'val_loss', 'train_loss', 'val_acc', 'train_acc', 'model_path']
+    if not is_file_exists:
+        df = pd.DataFrame(columns=column_names)
+    else:
+        df = pd.read_csv(csv_path)
+
+    row_df = pd.DataFrame([id, epoch_num, val_loss, train_loss, val_acc, train_acc, model_path], columns=column_names)
+    df = pd.concat(df, row_df)
+    df.to_csv(csv_path, index=False)
+
+
+def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_epoch_num):
+    fig, (ax2, ax1) = plt.subplots(2, sharex=True)
+    fig.suptitle('3*CNN')
+    ax1.set_title('Loss')
+    ax1.plot(val_losses, 'r', label='validation loss')
+    ax1.plot(train_losses, 'b', label='training loss')
+    ax1.plot([stop_epoch_num], [val_losses[stop_epoch_num]],  'ro')
+    ax1.plot([stop_epoch_num], [train_losses[stop_epoch_num]], 'bo')
+    ax1.axvline(x=stop_epoch_num, color='g', linestyle='--', label='stop')
+    ax1.set(xlabel='Epoch', ylabel='Loss')
+    ax1.legend()
+
+    ax2.set_title('Accuracy')
+    ax2.plot(val_accs, 'r', label='validation accuracy')
+    ax2.plot(train_accs, 'b', label='training accuracy')
+    ax2.plot([stop_epoch_num], [val_accs[stop_epoch_num]],  'ro')
+    ax2.plot([stop_epoch_num], [train_accs[stop_epoch_num]], 'bo')
+    ax2.axvline(x=stop_epoch_num, color='g', linestyle='--', label='stop')
+    ax2.set(ylabel='Accuracy')
+    ax2.legend()
+    plt.show()
+
+    str_tr = str(int(train_losses[stop_epoch_num]*1000))
+    str_val = str(int(val_losses[stop_epoch_num]*1000))
+    filename = 'train_chart_' + str(stop_epoch_num) + '_' + str_tr + '_' + str_val + '.png'
+    fig.savefig(filename)
 
 
 # ----------------------------
 # Inference
 # ----------------------------
-def inference (model, val_dl):
+def inference (model, val_dl, early_stopping=None):
     correct_prediction = 0
     total_prediction = 0
+    criterion = torch.nn.CrossEntropyLoss()
+    valid_losses = []
 
     # Disable gradient updates
     with torch.no_grad():
@@ -107,6 +182,9 @@ def inference (model, val_dl):
             # Get predictions
             outputs = model(inputs)
 
+            loss = criterion(outputs, labels)
+            valid_losses.append(loss.item())
+
             # Get the predicted class with the highest score
             _, prediction = torch.max(outputs,1)
             # Count of predictions that matched the target label
@@ -115,10 +193,35 @@ def inference (model, val_dl):
         
     acc = correct_prediction/total_prediction
     print(f'Validation set accuracy: {acc:.2f}, Total items: {total_prediction}')
+    valid_loss = np.average(valid_losses)
+    print(f'Validation loss: {valid_loss:.2f}')
 
+    stats = valid_loss, acc
+    if early_stopping is None:
+        return stats, False
+
+    early_stopping(valid_loss, model)
+    if early_stopping.early_stop:
+                print("STOP!")
+                return stats, True
+    return stats, False
 
 if __name__ == '__main__':
-
+    # fig, (ax2, ax1) = plt.subplots(2, sharex=True)
+    # #fig.title('Loss')
+    # ax1.set_title('Loss')
+    # ax1.plot([1, 2, 3], 'r', label='validation loss')
+    # ax1.plot([4, 5, 6], 'g', label='training loss')
+    # ax1.axvline(x=1, color='b', linestyle='--', label='stop')
+    # ax1.set(ylabel='Loss')
+    # ax1.legend()
+    # ax2.set_title('Accuracy')
+    # ax2.plot([10, 20, 30], 'r', label='validation loss')
+    # ax2.plot([40, 50, 60], 'g', label='training loss')
+    # ax2.set(xlabel='Epoch', ylabel='Accuracy')
+    # ax2.legend()
+    # plt.show()
+    # fig.savefig('asd.png')
     # paths
     dataset_location_path = 'D:/ProjektBadawczy/annotation/'
     model_location_path = dataset_location_path + 'model.torch'
@@ -140,8 +243,14 @@ if __name__ == '__main__':
     # Check that it is on Cuda
     next(myModel.parameters()).device
 
-    num_epochs=400   # Just for demo, adjust this higher.
-    training(myModel, train_data, val_data, num_epochs)
+    early_stopping = EarlyStopping(patience=25, verbose=True)
+    num_epochs=500
+    training(myModel, train_data, val_data, num_epochs, early_stopping)
+    myModel.load_state_dict(torch.load(early_stopping.path))
+    myModel.eval()
+    inference(myModel, val_data)
+    inference(myModel, val_data)
+    inference(myModel, val_data)
     inference(myModel, val_data)
 
     torch.save(myModel.state_dict(), dataset_location_path + 'model.torch')
