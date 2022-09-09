@@ -3,10 +3,11 @@ import pandas as pd
 import os
 
 
-def cut_audio_based_on_csv(audio_path, csv_path, audio_save_path='', labels_save_path=''):
+def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
+
     # load files
+    last_audio_path = None
     input_dataframe = pd.read_csv(csv_path)
-    audio_file = AudioSegment.from_wav(audio_path)
 
     output_dataframe = pd.DataFrame(columns=['file_path', 'class'])
 
@@ -20,8 +21,13 @@ def cut_audio_based_on_csv(audio_path, csv_path, audio_save_path='', labels_save
 
     # cut and save new files
     for i, row in input_dataframe.iterrows():
+        audio_path = row['audio_file_name']
         t1 = row['audio_position_start']
         t2 = row['audio_position_end']
+        
+        if audio_path != last_audio_path:
+            audio_file = AudioSegment.from_wav(audio_path)
+        
         cutted = audio_file[t1:t2]
         out_audio_path = audio_save_path + 'VehicleNoise{0}.wav'.format(i)
         cutted.export(out_audio_path, format='wav')
@@ -40,6 +46,9 @@ def cut_audio_based_on_csv(audio_path, csv_path, audio_save_path='', labels_save
         # append new row
         row = pd.DataFrame([[out_audio_path, label]], columns=['file_path', 'class'])
         output_dataframe = output_dataframe.append(row)
+        
+        # remember last file to not open it again if next is the same
+        last_audio_path = audio_path
     
     # save csv
     save_csv_path = labels_save_path + 'labels.csv'
@@ -51,7 +60,6 @@ def create_csv_with_labels(in_csv_path, out_csv_path):
 
 
 if __name__ == '__main__':
-    audio_path = 'G:/Moje dane/ProjektBadawczy/INZNAK Viewer/data/audio_data_20190524T120000.wav'
     csv_path = 'log.csv'
     save_path = 'cutted_files/'
-    cut_audio_based_on_csv(audio_path, csv_path, save_path)
+    cut_audio_based_on_csv(csv_path, save_path)

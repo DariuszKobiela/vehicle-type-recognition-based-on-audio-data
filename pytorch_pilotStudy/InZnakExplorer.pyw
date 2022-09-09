@@ -457,8 +457,8 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     player = VideoWindow()
     player.resize(640, 720)
-    player.setAudioFile('G:/Moje dane/ProjektBadawczy/INZNAK Viewer/data/audio_data_20190524T120000.wav')
-    player.setMovieFile('G:/Moje dane/ProjektBadawczy/INZNAK Viewer/data/rec_0524140000.avi')
+    player.setAudioFile('F:/Moje dane/ProjektBadawczy/INZNAK Viewer/data/audio_data_20190524T120000.wav')
+    player.setMovieFile('F:/Moje dane/ProjektBadawczy/INZNAK Viewer/data/rec_0524140000.avi')
     player.show()
     sys.exit(app.exec_())
 
