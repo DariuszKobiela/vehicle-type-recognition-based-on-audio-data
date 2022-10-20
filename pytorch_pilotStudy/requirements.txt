@@ -1,0 +1,5 @@
+PyQt5
+matplotlib ==  3.0.3
+numpy == 1.17.3
+scipy == 1.2.0
+pydub
