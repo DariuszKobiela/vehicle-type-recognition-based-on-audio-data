@@ -47,7 +47,8 @@ class AudioClassifier (nn.Module):
 
         # Linear Classifier
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.lin = nn.Linear(in_features=42, out_features=3)
+        self.lin = nn.Linear(in_features=42, out_features=106)
+        self.lin2 = nn.Linear(in_features=106, out_features=3)
 
         # self.lin2 = nn.Linear(in_features=20, out_features=50)
         # self.lin3 = nn.Linear(in_features=50, out_features=10)
@@ -69,8 +70,9 @@ class AudioClassifier (nn.Module):
         # Linear layer
         x = self.lin(x)
 
-        # x = F.relu(x)
-        # x = self.lin2(x)
+        x = F.relu(x)
+        x = self.lin2(x)
+        
         # x = F.relu(x)
         # x = self.lin3(x)
 

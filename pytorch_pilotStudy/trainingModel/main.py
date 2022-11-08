@@ -226,14 +226,15 @@ def inference (model, val_dl, early_stopping=None):
     return stats, False
 
 if __name__ == '__main__':
+    # torch.cuda.is_available = lambda : False # no_gpu
     # paths
-    dataset_location_path = 'D:/ProjektBadawczy/annotation/'
+    dataset_location_path = ''
     audio_files_path = 'cutted_files/'
     full_audio_files_path = dataset_location_path + audio_files_path
     labels_csv_path = dataset_location_path + 'labels.csv'
 
     for i in range(5):
-        training_id = '10n_4cnn_rmsprop_relu_' + str(i)
+        training_id = 'test_more_data' + str(i)
         model_dir = 'models/'
         model_filename = 'model_{0}.torch'.format(training_id)
         model_location_path = model_dir + model_filename
