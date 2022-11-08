@@ -2,6 +2,10 @@ import pandas as pd
 import sys
 from datetime import datetime
 
+csv_col_file_names = ['video_file_name', 'audio_file_name']
+csv_col_time_names = ['video_position', 'audio_position_start', 'audio_position_end']
+csv_col_class_names = [ 'motorcycle_present', 'car_present', 'van_present', 'truck_present', 'bus_present']
+
 def absolute_path_to_relative(csv_path):
     
     input_dataframe = pd.read_csv(csv_path)
@@ -10,6 +14,8 @@ def absolute_path_to_relative(csv_path):
     for i, row in input_dataframe.iterrows():
         for col_name in columns_names:
             abs_paths = row[col_name]
+            if not isinstance(abs_paths, str):
+                continue
             abs_paths_split = abs_paths.split('/')
             relative_path = 'data/' + abs_paths_split[-1]
             input_dataframe.at[i, col_name] = relative_path
@@ -29,14 +35,11 @@ def old_log_to_new_log(csv_path, audio_path):
     col_class_names = ['motorcycle', 'car', 'van', 'truck', 'bus']
     
     # new file format columns
-    new_file_names = ['video_file_name', 'audio_file_name']
-    new_time_names = ['video_position', 'audio_position_start', 'audio_position_end']
-    new_class_names = [ 'motorcycle_present', 'car_present', 'van_present', 'truck_present', 'bus_present']
-    all_column_names = (new_file_names + new_time_names + new_class_names)
+    all_column_names = (csv_col_file_names + csv_col_time_names + csv_col_class_names)
     
     new_dataframe = pd.DataFrame(columns=all_column_names)
     
-    for i, row in df.iterrows():
+    for _, row in df.iterrows():
         # get time
         timestamp = row[col_time_name]
         ms_time = time_to_ms(timestamp)
@@ -58,9 +61,9 @@ def old_log_to_new_log(csv_path, audio_path):
             continue
         
         # save to df
-        row = pd.DataFrame([['', audio_path, '', time_start, time_end, *vehicle_present]],
+        new_row = pd.DataFrame([['', audio_path, '', int(time_start), int(time_end), *vehicle_present]],
                            columns=all_column_names)
-        new_dataframe = new_dataframe.append(row)
+        new_dataframe = new_dataframe.append(new_row)
         
     # save csv
     save_csv_path = 'test_oldLog.csv'
@@ -74,14 +77,41 @@ def time_to_ms(str_time):
     ms = ms + int(time_split[2]) * 1000 # sec
     ms = ms + int(time_split[3]) # ms
     return ms
+
+
+def combine_csvs(*csv_paths):
+    dfs = [pd.read_csv(csv_path) for csv_path in csv_paths]
+    new_df = pd.concat(dfs)
+    
+    # save csv
+    save_csv_path = 'combinedLog.csv'
+    new_df.to_csv(save_csv_path, index=False)
+    
     
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    arg_num = len(sys.argv)
+    if arg_num < 2:
+        print('Not enough arguments')
         sys.exit()
+    action = sys.argv[1]
         
-    if sys.argv[1] == 'torelative':
-        absolute_path_to_relative('./log.csv')
-    if sys.argv[1] == 'tonewlog':
-        old_log_to_new_log('./Audio_DATA_20190524T1400V1200A.csv', 'audio_data_20190524T120000.wav')
+    if action == 'torelative':
+        if arg_num != 3:
+            print('Wrong num of arguments - csv_path')
+            sys.exit()
+        absolute_path_to_relative(sys.argv[2])
+        
+    if action == 'tonewlog':
+        if arg_num != 4:
+            print('Wrong num of arguments - csv_path, wav_path')
+            sys.exit()
+        old_log_to_new_log(sys.argv[2], sys.argv[3])
+        
+    if action == 'combine':
+        if arg_num < 4:
+            print('Not enough arguments - *csv_paths')
+            sys.exit()
+        combine_csvs(*sys.argv[2:])
+        
 
     
