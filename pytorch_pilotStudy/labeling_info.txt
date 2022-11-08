@@ -1,2 +1,8 @@
 300000ms video labeled
+(24.05 14:00 -> [12:00 audio, 14:00 video]) 
+
 video shift -> 2000ms
+
+labeled by Szymon Zaporowski
+(24.05 14:00 -> [12:00 audio, 14:00 video]) <- doubled!!!
+(24.05 15:00 -> [13:00 audio, 15:00 video])
