@@ -1,6 +1,7 @@
 from pydub import AudioSegment
 import pandas as pd
 import os
+import sys
 
 
 def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
@@ -60,6 +61,10 @@ def create_csv_with_labels(in_csv_path, out_csv_path):
 
 
 if __name__ == '__main__':
-    csv_path = 'log.csv'
+    csv_path = 'log.csv' # default
+    arg_num = len(sys.argv)
+    if arg_num == 2:
+        csv_path = sys.argv[1]
+    
     save_path = 'cutted_files/'
     cut_audio_based_on_csv(csv_path, save_path)
