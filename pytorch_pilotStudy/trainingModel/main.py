@@ -4,30 +4,30 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import random_split
 from AudioClassifier import AudioClassifier
-from AudioUtils import AudioUtils
 from SoundDS import SoundDS
-import utilities
 import os
 from EarlyStopping import EarlyStopping
 
-from scipy import signal
-from scipy.io import wavfile
 import numpy as np
+from sklearn.metrics import confusion_matrix
+import seaborn as sn
 
 
-def prepare_data(df, data_path, train_size=0.8):
+def prepare_data(df, data_path, val_size=0.15, test_size=0.15):
     myds = SoundDS(df, data_path)
+    train_size = 1 - val_size - test_size
 
     # Random split of 80:20 between training and validation
-    num_items = len(myds)
-    num_train = round(num_items * train_size)
-    num_val = num_items - num_train
-    train_ds, val_ds = random_split(myds, [num_train, num_val])
+    # num_items = len(myds)
+    # num_train = round(num_items * train_size)
+    # num_val = num_items - num_train
+    train_ds, val_ds, test_ds = random_split(myds, [train_size, val_size, test_size])
 
     # Create training and validation data loaders
     train_dl = torch.utils.data.DataLoader(train_ds, batch_size=16, shuffle=True)
     val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
-    return train_dl, val_dl
+    test_dl = torch.utils.data.DataLoader(test_ds, batch_size=16, shuffle=False)
+    return train_dl, val_dl, test_dl
 
 
 # ----------------------------
@@ -116,7 +116,7 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, re
     # saving results
     correct_epoch_num = epoch
     if stop:
-        correct_epoch_num -= 25
+        correct_epoch_num -= early_stopping.patience
 
     best_train_loss = train_losses[correct_epoch_num]
     best_val_loss = val_losses[correct_epoch_num]
@@ -182,11 +182,14 @@ def plot_training_history(train_losses, val_losses, train_accs, val_accs, stop_e
 # ----------------------------
 # Inference
 # ----------------------------
-def inference (model, val_dl, early_stopping=None):
+def inference (model, val_dl, early_stopping=None, test=None, classes=None):
     correct_prediction = 0
     total_prediction = 0
     criterion = torch.nn.CrossEntropyLoss()
     valid_losses = []
+    
+    y_pred = []
+    y_true = []
 
     # Disable gradient updates
     with torch.no_grad():
@@ -209,11 +212,25 @@ def inference (model, val_dl, early_stopping=None):
             # Count of predictions that matched the target label
             correct_prediction += (prediction == labels).sum().item()
             total_prediction += prediction.shape[0]
+            
+            if test is not None:
+                y_pred.extend(prediction.cpu().numpy())
+                y_true.extend(labels.cpu().numpy())
         
+    word = 'Validation' if test is None else 'Test'
     acc = correct_prediction/total_prediction
-    print(f'Validation set accuracy: {acc:.2f}, Total items: {total_prediction}')
+    print(f'{word} set accuracy: {acc:.2f}, Total items: {total_prediction}')
     valid_loss = np.average(valid_losses)
-    print(f'Validation loss: {valid_loss:.2f}')
+    print(f'{word} loss: {valid_loss:.2f}')
+    
+    # confusion matrix
+    if test is not None:
+        cf_matrix = confusion_matrix(y_true, y_pred)
+        df_cm = pd.DataFrame(cf_matrix/np.sum(cf_matrix) *100, index = [i for i in classes],
+                     columns = [i for i in classes])
+        plt.figure(figsize = (12,7))
+        sn.heatmap(df_cm, annot=True)
+        plt.savefig('output.png')
 
     stats = valid_loss, acc
     if early_stopping is None:
@@ -225,6 +242,12 @@ def inference (model, val_dl, early_stopping=None):
                 return stats, True
     return stats, False
 
+def print_num_of_data(df):
+    print('---------')
+    print('Number of smaples in classes')
+    print(df['class'].value_counts())
+    print('---------')
+
 if __name__ == '__main__':
     # torch.cuda.is_available = lambda : False # no_gpu
     # paths
@@ -232,15 +255,19 @@ if __name__ == '__main__':
     audio_files_path = 'cutted_files/'
     full_audio_files_path = dataset_location_path + audio_files_path
     labels_csv_path = dataset_location_path + 'labels.csv'
+    
+    classes = ('Car', 'Truck', 'Motocycle and rest')
 
-    for i in range(5):
+    for i in range(1):
         training_id = 'test_more_data' + str(i)
         model_dir = 'models/'
         model_filename = 'model_{0}.torch'.format(training_id)
         model_location_path = model_dir + model_filename
 
         df = pd.read_csv(labels_csv_path)
-        train_data, val_data = prepare_data(df, dataset_location_path)
+        print_num_of_data(df)
+        
+        train_data, val_data, test_data = prepare_data(df, dataset_location_path)
         
         myModel = AudioClassifier()
         if os.path.exists(model_location_path):
@@ -253,15 +280,12 @@ if __name__ == '__main__':
         # Check that it is on Cuda
         next(myModel.parameters()).device
 
-        early_stopping = EarlyStopping(patience=25, verbose=True)
-        num_epochs=500
+        early_stopping = EarlyStopping(patience=20, verbose=True)
+        num_epochs=110
         training(myModel, train_data, val_data, num_epochs, early_stopping, training_id=training_id, model_path=model_location_path)
         myModel.load_state_dict(torch.load(early_stopping.path))
         myModel.eval()
-        inference(myModel, val_data)
-        inference(myModel, val_data)
-        inference(myModel, val_data)
-        inference(myModel, val_data)
+        inference(myModel, test_data, None, True, classes)
 
         torch.save(myModel.state_dict(), model_location_path)
         #torch.save(myModel, model_location_path)
