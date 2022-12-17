@@ -40,7 +40,7 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, re
     val_accs = []
 
     # Loss Function, Optimizer and Scheduler
-    learning_rate = 0.001
+    learning_rate = 0.01
     criterion = torch.nn.CrossEntropyLoss()
     params = model.parameters()
     # optimizers = [
@@ -50,7 +50,8 @@ def training(model, train_dl, validation_dl, num_epochs, early_stopping=None, re
     #     torch.optim.Adagrad(params, lr=learning_rate),
     #     torch.optim.Adam(params,lr=learning_rate)
     # ]
-    optimizer = torch.optim.RMSprop(params, lr=learning_rate)
+    # optimizer = torch.optim.RMSprop(params, lr=learning_rate)
+    optimizer = torch.optim.Adam(params, lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=learning_rate,
                                                     steps_per_epoch=int(len(train_dl)),
                                                     epochs=num_epochs,
@@ -226,7 +227,8 @@ def inference (model, val_dl, early_stopping=None, test=None, classes=None):
     # confusion matrix
     if test is not None:
         cf_matrix = confusion_matrix(y_true, y_pred)
-        df_cm = pd.DataFrame(cf_matrix/np.sum(cf_matrix) *100, index = [i for i in classes],
+        # cf_matrix/np.sum(cf_matrix) *100
+        df_cm = pd.DataFrame(cf_matrix, index = [i for i in classes],
                      columns = [i for i in classes])
         plt.figure(figsize = (12,7))
         sn.heatmap(df_cm, annot=True)
@@ -241,6 +243,7 @@ def inference (model, val_dl, early_stopping=None, test=None, classes=None):
                 print("STOP!")
                 return stats, True
     return stats, False
+
 
 def print_num_of_data(df):
     print('---------')
@@ -280,7 +283,7 @@ if __name__ == '__main__':
         # Check that it is on Cuda
         next(myModel.parameters()).device
 
-        early_stopping = EarlyStopping(patience=20, verbose=True)
+        early_stopping = EarlyStopping(patience=4, verbose=True)
         num_epochs=110
         training(myModel, train_data, val_data, num_epochs, early_stopping, training_id=training_id, model_path=model_location_path)
         myModel.load_state_dict(torch.load(early_stopping.path))
