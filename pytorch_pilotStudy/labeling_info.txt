@@ -6,3 +6,14 @@ video shift -> 2000ms
 labeled by Szymon Zaporowski
 (24.05 14:00 -> [12:00 audio, 14:00 video]) <- doubled!!!
 (24.05 15:00 -> [13:00 audio, 15:00 video])
+
+labeled by Mateusz Erezman
+new audio files
+(24.05 08:00 -> [08:00 audio, 10:00 video])
+(24.05 09:00 -> [09:00 audio, 11:00 video])
+
+labeled by Michał Hajdasz
+new audio files
+(24.05 10:00 -> [10:00 audio, 12:00 video])
+(24.05 11:00 -> [11:00 audio, 13:00 video])
+

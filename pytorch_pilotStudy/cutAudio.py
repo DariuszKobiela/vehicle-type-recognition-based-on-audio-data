@@ -35,14 +35,15 @@ def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
 
         # add new file to labels file
         label = 0
-        if row['motorcycle_present'] == 1 or row['bus_present'] == 1 or row['van_present'] == 1:
+        if row['motorcycle_present'] == 1:
             label = 2
-        elif row['truck_present'] == 1:
+        elif row['truck_present'] == 1 or row['bus_present'] == 1 or row['van_present'] == 1:
             label = 1
         elif row['car_present'] == 1:
             label = 0
         else:
             label = -1
+            print('Warning: No label given for row number: ' + str(i))
 
         # append new row
         row = pd.DataFrame([[out_audio_path, label]], columns=['file_path', 'class'])
