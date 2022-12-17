@@ -79,12 +79,11 @@ def time_to_ms(str_time):
     return ms
 
 
-def combine_csvs(*csv_paths):
+def combine_csvs(*csv_paths, save_csv_path='combinedLog.csv'):
     dfs = [pd.read_csv(csv_path) for csv_path in csv_paths]
     new_df = pd.concat(dfs)
     
     # save csv
-    save_csv_path = 'combinedLog.csv'
     new_df.to_csv(save_csv_path, index=False)
     
     

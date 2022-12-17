@@ -12,7 +12,6 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 import seaborn as sn
 
-
 def prepare_data(df, data_path, val_size=0.15, test_size=0.15):
     myds = SoundDS(df, data_path)
     train_size = 1 - val_size - test_size
@@ -228,6 +227,12 @@ def inference (model, val_dl, early_stopping=None, test=None, classes=None):
     if test is not None:
         cf_matrix = confusion_matrix(y_true, y_pred)
         # cf_matrix/np.sum(cf_matrix) *100
+        cf_matrix = cf_matrix.astype('float16')
+        for i in range(len(classes)):
+            if np.sum(cf_matrix[:, i]) == 0:
+                cf_matrix[:, i] = 0
+                continue
+            cf_matrix[:, i] = cf_matrix[:, i]/np.sum(cf_matrix[:, i])
         df_cm = pd.DataFrame(cf_matrix, index = [i for i in classes],
                      columns = [i for i in classes])
         plt.figure(figsize = (12,7))
@@ -284,7 +289,7 @@ if __name__ == '__main__':
         next(myModel.parameters()).device
 
         early_stopping = EarlyStopping(patience=4, verbose=True)
-        num_epochs=110
+        num_epochs=50
         training(myModel, train_data, val_data, num_epochs, early_stopping, training_id=training_id, model_path=model_location_path)
         myModel.load_state_dict(torch.load(early_stopping.path))
         myModel.eval()

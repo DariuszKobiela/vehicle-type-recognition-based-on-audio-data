@@ -2,9 +2,12 @@ from pydub import AudioSegment
 import pandas as pd
 import os
 import sys
+from os import listdir
+from os.path import isfile, join
+from labelingUtilities import combine_csvs
 
 
-def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
+def cut_audio_based_on_csv(csv_path, class_row_names, audio_save_path='', labels_save_path=''):
 
     # load files
     last_audio_path = None
@@ -34,16 +37,23 @@ def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
         cutted.export(out_audio_path, format='wav')
 
         # add new file to labels file
-        label = 0
-        if row['motorcycle_present'] == 1:
-            label = 2
-        elif row['truck_present'] == 1 or row['bus_present'] == 1 or row['van_present'] == 1:
-            label = 1
-        elif row['car_present'] == 1:
-            label = 0
-        else:
-            label = -1
-            print('Warning: No label given for row number: ' + str(i))
+        label = -1
+        for row_name in class_row_names:
+            if row[row_name] == 1:
+                label = classname_to_int(row_name, class_row_names)
+                if label == -1:
+                    print('Warning: No label given for row number: ' + str(i))
+        
+        
+        # if row['motorcycle_present'] == 1:
+        #     label = 2
+        # elif row['truck_present'] == 1 or row['bus_present'] == 1 or row['van_present'] == 1:
+        #     label = 1
+        # elif row['car_present'] == 1:
+        #     label = 0
+        # else:
+        #     label = -1
+        #     print('Warning: No label given for row number: ' + str(i))
 
         # append new row
         row = pd.DataFrame([[out_audio_path, label]], columns=['file_path', 'class'])
@@ -57,15 +67,52 @@ def cut_audio_based_on_csv(csv_path, audio_save_path='', labels_save_path=''):
     output_dataframe.to_csv(save_csv_path, index=False)
 
 
-def create_csv_with_labels(in_csv_path, out_csv_path):
-    df = pd.DataFrame()
+def classname_to_int(name, class_names):
+    for i, class_name in enumerate(class_names):
+        if name == class_name:
+            return classid_to_combined_classid(i)
+    print('Warning: Unknown class!')
+    return -1
 
 
+def classid_to_combined_classid(class_id):
+    # ['car', 'truck', 'motorcycle', 'van', 'bus']
+    if (class_id == 3 or class_id == 4): # van or bus
+        class_id = 1 # add to trucks
+    return class_id
+
+
+def dir_to_classes(dir_path, class_names):
+    output_dataframe = pd.DataFrame(columns=['file_path', 'class'])
+    for f in listdir(dir_path):
+        # only dirs
+        subdir = join(dir_path, f)
+        if isfile(subdir):
+            continue 
+        
+        label = classname_to_int(f, class_names)
+        if label == -1:
+            continue
+        
+        for audio_file in listdir(subdir):
+            row = pd.DataFrame([['data/additional/' + str(f) + '/' + str(audio_file), label]], columns=['file_path', 'class'])
+            output_dataframe = output_dataframe.append(row)
+            
+    output_dataframe.to_csv('newLabels.csv', index=False)
+                
+
+    
 if __name__ == '__main__':
     csv_path = 'log.csv' # default
     arg_num = len(sys.argv)
     if arg_num == 2:
         csv_path = sys.argv[1]
     
+    new_files_dir_path = 'data\\additional'
     save_path = 'cutted_files/'
-    cut_audio_based_on_csv(csv_path, save_path)
+    # class_row_names = ['car_present', 'truck_present', 'motorcycle_present', 'van_present', 'bus_present']
+    class_names = ['car', 'truck', 'motorcycle', 'van', 'bus']
+    class_row_names = [name + '_present' for name in class_names]
+    cut_audio_based_on_csv(csv_path, class_row_names, save_path)
+    dir_to_classes(new_files_dir_path, class_names)
+    combine_csvs('newLabels.csv', 'labels.csv', save_csv_path='labels.csv')
