@@ -6,5 +6,6 @@ cutted_files
 models
 inznak
 __pycache__
+trainingModel/__pycache__
 charts
 checkpoint.pt
