@@ -9,3 +9,7 @@ __pycache__
 trainingModel/__pycache__
 charts
 checkpoint.pt
+results.txt
+log.csv
+output.png
+results.csv
