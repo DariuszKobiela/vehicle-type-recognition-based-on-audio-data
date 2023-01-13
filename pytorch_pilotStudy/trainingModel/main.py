@@ -7,12 +7,16 @@ from AudioClassifier import AudioClassifier
 from SoundDS import SoundDS
 import os
 from EarlyStopping import EarlyStopping
+from torchsummary import summary
 
 import numpy as np
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import f1_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import precision_score
 import seaborn as sn
 
-def prepare_data(df, data_path, val_size=0.15, test_size=0.15):
+def prepare_data(df, data_path, val_size=0.10, test_size=0.15):
     myds = SoundDS(df, data_path)
     train_size = 1 - val_size - test_size
 
@@ -23,9 +27,9 @@ def prepare_data(df, data_path, val_size=0.15, test_size=0.15):
     train_ds, val_ds, test_ds = random_split(myds, [train_size, val_size, test_size])
 
     # Create training and validation data loaders
-    train_dl = torch.utils.data.DataLoader(train_ds, batch_size=16, shuffle=True)
-    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
-    test_dl = torch.utils.data.DataLoader(test_ds, batch_size=16, shuffle=False)
+    train_dl = torch.utils.data.DataLoader(train_ds, batch_size=64, shuffle=True)
+    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=64, shuffle=False)
+    test_dl = torch.utils.data.DataLoader(test_ds, batch_size=64, shuffle=False)
     return train_dl, val_dl, test_dl
 
 
@@ -238,6 +242,45 @@ def inference (model, val_dl, early_stopping=None, test=None, classes=None):
         plt.figure(figsize = (12,7))
         sn.heatmap(df_cm, annot=True)
         plt.savefig('output.png')
+        f = open("results.txt", "w")
+        f.write(f"Accuracy = {acc}\n")
+        
+        f1 = f1_score(y_true, y_pred, average=None)
+        print(f'f1 = {f1}')
+        f.write(f'F1-Score = {f1}\n')
+        f1 = f1_score(y_true, y_pred, average='macro')
+        print(f'f1 (macro) = {f1}')
+        f.write(f'F1-Score (macro) = {f1}\n')
+        f1 = f1_score(y_true, y_pred, average='weighted')
+        print(f'f1 (weighted) = {f1}')
+        f.write(f'F1-Score (weighted) = {f1}\n')
+        
+        prec = precision_score(y_true, y_pred, average=None)
+        print(f'Precision = {prec}')
+        f.write(f'Precision = {prec}\n')
+        prec = precision_score(y_true, y_pred, average='macro')
+        print(f'Precision (macro) = {prec}')
+        f.write(f'Precision (macro) = {prec}\n')
+        prec = precision_score(y_true, y_pred, average='weighted')
+        print(f'Precision (weighted) = {prec}')
+        f.write(f'Precision (weighted) = {prec}\n')
+        
+        rec = recall_score(y_true, y_pred, average=None)
+        print(f'Recall = {rec}')
+        f.write(f'Recall = {rec}\n')
+        rec = recall_score(y_true, y_pred, average='macro')
+        print(f'Recall (macro) = {rec}')
+        f.write(f'Recall (macro) = {rec}\n')
+        rec = recall_score(y_true, y_pred, average='weighted')
+        print(f'Recall (weighted) = {rec}')
+        f.write(f'Recall (weighted) = {rec}\n')
+    
+        for idx, c in enumerate(classes):
+            occurance = y_true.count(idx)
+            print(f'Support {c} = {occurance}')
+            f.write(f'Support {c} = {occurance}\n')
+        
+        f.close()
 
     stats = valid_loss, acc
     if early_stopping is None:
@@ -257,6 +300,10 @@ def print_num_of_data(df):
     print('---------')
 
 if __name__ == '__main__':
+    
+    # no augmentation
+    # SoundDS.__getitem__ = SoundDS.get_item_with_no_aug
+    
     # torch.cuda.is_available = lambda : False # no_gpu
     # paths
     dataset_location_path = ''
@@ -264,12 +311,13 @@ if __name__ == '__main__':
     full_audio_files_path = dataset_location_path + audio_files_path
     labels_csv_path = dataset_location_path + 'labels.csv'
     
-    classes = ('Car', 'Truck', 'Motocycle and rest')
+    classes = ('Car', 'Truck', 'Motocycle')
 
     for i in range(1):
-        training_id = 'test_more_data' + str(i)
+        #training_id = 'test_more_data' + str(i)
+        training_id = 'PyTorch Spectrogram hop_length=512 2'
         model_dir = 'models/'
-        model_filename = 'model_{0}.torch'.format(training_id)
+        model_filename = 'model_{0}.torch'.format(training_id.replace(' ', '_'))
         model_location_path = model_dir + model_filename
 
         df = pd.read_csv(labels_csv_path)
@@ -285,76 +333,26 @@ if __name__ == '__main__':
         # Put model on the GPU if available
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         myModel = myModel.to(device)
+        summary(myModel, (2, 64, 469))
+        for i, child in enumerate(myModel.children()):
+            j = 0
+            # print(f'{i} {child}')
+            for param in child.parameters():
+                # print(f'{j} param')
+                j += 1
+                # param.requires_grad = False
         # Check that it is on Cuda
         next(myModel.parameters()).device
 
-        early_stopping = EarlyStopping(patience=4, verbose=True)
-        num_epochs=50
+        early_stopping = EarlyStopping(patience=15, verbose=True)
+        num_epochs=100
         training(myModel, train_data, val_data, num_epochs, early_stopping, training_id=training_id, model_path=model_location_path)
         myModel.load_state_dict(torch.load(early_stopping.path))
         myModel.eval()
+        
+        # no augmentation for testing
+        SoundDS.__getitem__ = SoundDS.get_item_with_no_aug
+        
         inference(myModel, test_data, None, True, classes)
 
         torch.save(myModel.state_dict(), model_location_path)
-        #torch.save(myModel, model_location_path)
-
-
-    # Old code
-
-    # fig, (ax2, ax1) = plt.subplots(2, sharex=True)
-    # #fig.title('Loss')
-    # ax1.set_title('Loss')
-    # ax1.plot([1, 2, 3], 'r', label='validation loss')
-    # ax1.plot([4, 5, 6], 'g', label='training loss')
-    # ax1.axvline(x=1, color='b', linestyle='--', label='stop')
-    # ax1.set(ylabel='Loss')
-    # ax1.legend()
-    # ax2.set_title('Accuracy')
-    # ax2.plot([10, 20, 30], 'r', label='validation loss')
-    # ax2.plot([40, 50, 60], 'g', label='training loss')
-    # ax2.set(xlabel='Epoch', ylabel='Accuracy')
-    # ax2.legend()
-    # plt.show()
-    # fig.savefig('asd.png')
-
-    # audio_file  = AudioUtils.open(full_audio_files_path + 'VehicleNoise0.wav')
-    # audio_file = AudioUtils.rechannel(audio_file, 1)
-
-    # samples, sample_rate = audio_file
-    # frequencies, times, spectrogram = signal.spectrogram(samples, sample_rate)
-
-    # plt.pcolormesh(times, frequencies, spectrogram)
-    # plt.imshow(spectrogram)
-    # plt.ylabel('Frequency [Hz]')
-    # plt.xlabel('Time [sec]')
-    # plt.show()
-
-    # utilities.graph_spectrogram(full_audio_files_path + 'VehicleNoise0.wav')
-
-    # utilities.write_filenames_to_csv(full_audio_files_path, labels_csv_path)
-    # utilities.classnames_to_nums(labels_csv_path)
-
-    # df = pd.read_csv(labels_csv_path)
-    # sound_ds = SoundDS(df, dataset_location_path)
-    # spec, classid = sound_ds[0]
-    # print(classid)
-    # print(spec.shape)
-    
-    # plt.figure()
-    # plt.imshow(spec[0].t().numpy(), aspect='auto', origin='lower')
-    # plt.show()
-
-    # AudioUtils.plot_spectrogram(spec[0])
-
-    # audio_file  = AudioUtils.open(full_audio_files_path + 'VehicleNoise0.wav')
-    # audio_file = AudioUtils.rechannel(audio_file, 2)
-    # audio_file = AudioUtils.pad_trunc(audio_file, 6000)
-
-    # AudioUtils.save(audio_file, full_audio_files_path + 'newAudio.wav')
-    # data_waveform, rate_of_sample = audio_file
-    # print(data_waveform.shape[0])
-
-
-    # plt.figure()
-    # plt.plot(data_waveform.t().numpy())
-    # plt.show()
