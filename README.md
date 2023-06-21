@@ -24,7 +24,7 @@ approach showed in [[1]](#1) takes into consideration only 2 classes
 (car and truck), while this approach takes 3 classes (car, truck
 and motorcycle). It was also showed that data preprocessing for
 audio data using mel-spectrograms gives better results than using
-MFCCs(Mel-frequency cepstral coefficients).
+MFCCs (Mel-frequency cepstral coefficients).
 
 The summary of the performed work can be seen in the [research project poster](2023_AI_TECH_research_project_poster.pdf).
 
