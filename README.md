@@ -26,13 +26,9 @@ and motorcycle). It was also showed that data preprocessing for
 audio data using mel-spectrograms gives better results than using
 MFCCs(Mel-frequency cepstral coefficients).
 
-The summary of the performed work can be seen in the [research project poster](2023_AI_TECH_research_project_poster.pdf)
+The summary of the performed work can be seen in the [research project poster](2023_AI_TECH_research_project_poster.pdf).
 
-<object data="https://github.com/DariuszKobiela/vehicle-type-recognition-based-on-audio-data/blob/main/2023_AI_TECH_research_project_poster.pdf" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/DariuszKobiela/vehicle-type-recognition-based-on-audio-data/blob/main/2023_AI_TECH_research_project_poster.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/DariuszKobiela/vehicle-type-recognition-based-on-audio-data/blob/main/2023_AI_TECH_research_project_poster.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+![research project poster](2023_AI_TECH_research_project_poster.png)
 
 ## References
 <a id="1">[1]</a> 
