@@ -6,6 +6,8 @@ network model, which basing on the input data in the form
 of an audio files would be able to recognize the type of the
 vehicle passing.
 
+Part of the code and approach used come from a tutorial published by Ketan Doshi on his blog (https://ketanhdoshi.github.io/Audio-Classification/) and on TowardScience.com website (https://towardsdatascience.com/audio-deep-learning-made-simple-sound-classification-step-by-step-cebc936bbe5).
+
 ## Installation
 
 Install project with virtualenv
